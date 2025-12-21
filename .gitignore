@@ -1,0 +1,94 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.egg
+dist/
+build/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+pytest.xml
+
+# Virtualenv / venv
+.venv/
+venv/
+ENV/
+env/
+.venv.bak/
+venv.bak/
+
+# pyenv
+.python-version
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# =========================
+# IDE / Editors
+# =========================
+.vscode/
+.idea/
+*.iml
+
+# =========================
+# Logs / temp
+# =========================
+*.log
+*.tmp
+*.swp
+*.swo
+
+# =========================
+# Gaia runtime outputs
+# =========================
+results/
+reports/
+*.jsonl
+*.har
+
+# =========================
+# Secrets / env
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# External tools binaries / caches (if you store them locally)
+# =========================
+tools/
+bin/
+.cache/
+tmp/
+
+# =========================
+# LinkFinder vendored build artifacts (keep source, ignore builds)
+# =========================
+LinkFinder/build/
+LinkFinder/*.egg-info/
+LinkFinder/__pycache__/
+
+# =========================
+# OS / misc
+# =========================
+*.pid
