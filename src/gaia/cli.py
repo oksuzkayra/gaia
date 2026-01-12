@@ -53,6 +53,12 @@ def cli_root(
     no_arjun: bool = typer.Option(False, "--no-arjun", help="Disable arjun parameter discovery."),
     no_linkfinder: bool = typer.Option(False, "--no-linkfinder", help="Disable linkfinder JS discovery."),
     no_uro: bool = typer.Option(False, "--no-uro", help="Disable uro URL normalization."),
+    no_js_analyzer: bool = typer.Option(False, "--no-js-analyzer", help="Disable JS analyzer stage."),
+    js_max_fetches: int = typer.Option(
+        25,
+        "--js-max-fetches",
+        help="Max JS files to fetch for analysis.",
+    ),
     max_urls: int = typer.Option(2000, "--max-urls", help="Upper bound of URLs to keep after collection."),
     auto_install: bool = typer.Option(
         False,
@@ -100,8 +106,9 @@ def cli_root(
     use_arjun = not no_arjun
     use_linkfinder = not no_linkfinder
     use_uro = not no_uro
+    use_js_analyzer = not no_js_analyzer
 
-    info("Stage 1/7: Resolving tools")
+    info("Stage 1/8: Resolving tools")
     enabled_tools: list[str] = []
     if use_katana and url:
         enabled_tools.append("katana")
@@ -113,7 +120,7 @@ def cli_root(
         enabled_tools.append("linkfinder")
 
     ensure_tools_present(enabled_tools, auto_install=auto_install)
-    info(f"Stage 2/7: Crawling target ({'katana' if use_katana else 'fallback fetcher'})")
+    info(f"Stage 2/8: Crawling target ({'katana' if use_katana else 'fallback fetcher'})")
     report = run_scan(
         url=url,
         stdin=stdin,
@@ -124,10 +131,12 @@ def cli_root(
         max_urls=max_urls,
         use_uro=use_uro,
         auto_install=auto_install,
+        use_js_analyzer=use_js_analyzer,
+        js_max_fetches=js_max_fetches,
         use_katana=use_katana,
     )
 
-    info("Stage 7/7: Rendering report")
+    info("Stage 8/8: Rendering report")
     if output_format == "console" and not output:
         # Rich console output
         ConsoleReporter().render(
@@ -141,6 +150,8 @@ def cli_root(
         )
         if report.parameter_notes:
             ConsoleReporter().render_parameter_notes(report.parameter_notes)
+        if report.js_findings:
+            ConsoleReporter().render_js_findings(report.js_findings)
     else:
         rendered = render_markdown(report) if output_format == "md" else render_json(report)
         if output:

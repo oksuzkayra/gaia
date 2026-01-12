@@ -165,5 +165,28 @@ class ConsoleReporter:
                 self.console.print(line)
             self.console.print("")  # blank line between params
 
+    def render_js_findings(self, js_findings: Dict[str, object]) -> None:
+        if not js_findings:
+            return
+        secrets = js_findings.get("secrets", []) or []
+        emails = js_findings.get("emails", []) or []
+        files = js_findings.get("files", []) or []
+
+        self.console.print("[bold underline]JS findings[/bold underline]")
+        if secrets:
+            self.console.print("[bold]Secrets[/bold]")
+            for s in secrets[:20]:
+                self.console.print(f"- {s.get('type','secret')}: {s.get('value','')} (source: {s.get('source','')})")
+            if len(secrets) > 20:
+                self.console.print(f"... and {len(secrets) - 20} more")
+        if emails:
+            self.console.print("[bold]Emails[/bold]")
+            for e in list(emails)[:20]:
+                self.console.print(f"- {e}")
+        if files:
+            self.console.print("[bold]Files[/bold]")
+            for f in list(files)[:20]:
+                self.console.print(f"- {f}")
+
 
 __all__ = ["ConsoleReporter"]

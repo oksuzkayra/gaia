@@ -13,8 +13,9 @@ from gaia.collectors.gau_wayback import GauCollector
 from gaia.collectors.linkfinder_js import LinkFinderCollector
 from gaia.collectors.live_html_js import LiveHtmlJsCollector
 from gaia.collectors.katana_crawler import KatanaCollector
+from gaia.collectors.js_analyzer_collector import JsAnalyzerCollector
 from gaia.core import analysis
-from gaia.core.model import AttackSurfaceReport
+from gaia.core.model import AttackSurfaceReport, Finding, RiskType
 from gaia.http_snapshot import INCLUDE_RESPONSES, MAX_FETCHES, fetch_response_snapshot
 from gaia.llm.analysis import analyze_with_llm, apply_ai_findings_to_endpoints, apply_baseline_risk_hints
 from gaia.llm.provider import get_model_name
@@ -87,6 +88,8 @@ def run_scan(
     max_urls: int,
     use_uro: bool,
     auto_install: bool,
+    use_js_analyzer: bool,
+    js_max_fetches: int,
     use_katana: bool = True,
 ) -> AttackSurfaceReport:
     """Run the Gaia scan pipeline and return an AttackSurfaceReport."""
@@ -122,61 +125,131 @@ def run_scan(
         metadata={},
     )
 
-    collectors = []
+    pre_katana_count = len(ctx.urls)
+    pre_gau_count = len(ctx.urls)
+
     if target_url:
         if use_katana:
             katana_path = resolve_tool("katana")
             if not katana_path:
                 print("[!] katana is required but not found. Install or set GAIA_DISABLE_KATANA=true to skip.")
                 sys.exit(1)
-            collectors.append(KatanaCollector(base_url=target_url, katana_path=katana_path))
+            try:
+                ctx = KatanaCollector(base_url=target_url, katana_path=katana_path).run(ctx)
+            except Exception as exc:  # noqa: BLE001
+                error(f"Collector KatanaCollector failed: {exc}")
+                if is_truthy_env("GAIA_DEBUG"):
+                    import traceback
+
+                    traceback.print_exc()
+                diag.add_error("KatanaCollector")
+            katana_delta = len(ctx.urls) - pre_katana_count
+            info(f"[i] Katana: collected {katana_delta} URLs")
         else:
-            collectors.append(LiveHtmlJsCollector())
+            try:
+                ctx = LiveHtmlJsCollector().run(ctx)
+            except Exception as exc:  # noqa: BLE001
+                error(f"Collector LiveHtmlJsCollector failed: {exc}")
+                if is_truthy_env("GAIA_DEBUG"):
+                    import traceback
+
+                    traceback.print_exc()
+                diag.add_error("LiveHtmlJsCollector")
+
+    info("Stage 3/8: Collecting historical URLs (gau)" if use_gau else "Stage 3/8: Skipping gau")
     if use_gau:
-        collectors.append(GauCollector(max_urls=max_urls))
-    if use_linkfinder:
-        collectors.append(LinkFinderCollector())
-    if use_arjun:
-        collectors.append(ArjunCollector())
-
-    pre_katana_count = len(ctx.urls)
-    pre_gau_count = len(ctx.urls)
-
-    for collector in collectors:
         try:
-            ctx = collector.run(ctx)
+            ctx = GauCollector(max_urls=max_urls).run(ctx)
         except Exception as exc:  # noqa: BLE001
-            error(f"Collector {collector.__class__.__name__} failed: {exc}")
+            error(f"Collector GauCollector failed: {exc}")
             if is_truthy_env("GAIA_DEBUG"):
                 import traceback
 
                 traceback.print_exc()
-            diag.add_error(collector.__class__.__name__)
-
-        # Emit Katana count immediately after katana completes
-        if isinstance(collector, KatanaCollector):
-            katana_delta = len(ctx.urls) - pre_katana_count if use_katana else 0
-            info(f"[i] Katana: collected {katana_delta} URLs")
-
-    info("Stage 3/7: Collecting historical URLs (gau)" if use_gau else "Stage 3/7: Skipping gau")
-    # Stage counts for GAU (after Stage 3 execution)
-    gau_delta = len(ctx.urls) - pre_gau_count if use_gau else 0
-    if use_gau:
+            diag.add_error("GauCollector")
+        gau_delta = len(ctx.urls) - pre_gau_count
         info(f"[i] GAU: collected {gau_delta} URLs")
 
-    info("Stage 4/7: Extracting params (arjun + query parsing)")
+    if use_linkfinder:
+        try:
+            ctx = LinkFinderCollector().run(ctx)
+        except Exception as exc:  # noqa: BLE001
+            error(f"Collector LinkFinderCollector failed: {exc}")
+            if is_truthy_env("GAIA_DEBUG"):
+                import traceback
+
+                traceback.print_exc()
+            diag.add_error("LinkFinderCollector")
+
+    if use_js_analyzer and os.getenv("GAIA_DISABLE_JS_ANALYZER", "false").lower() not in {"1", "true", "yes"}:
+        info("Stage 4/8: JS analysis")
+        max_fetches = js_max_fetches or int(os.getenv("GAIA_JS_MAX_FETCHES", "25"))
+        max_chars = int(os.getenv("GAIA_JS_MAX_CHARS", "1000000"))
+        try:
+            ctx = JsAnalyzerCollector(max_fetches=max_fetches, max_chars=max_chars).run(ctx)
+        except Exception as exc:  # noqa: BLE001
+            error(f"Collector JsAnalyzerCollector failed: {exc}")
+            if is_truthy_env("GAIA_DEBUG"):
+                import traceback
+
+                traceback.print_exc()
+            diag.add_error("JsAnalyzerCollector")
+
+    info("Stage 5/8: Extracting params (arjun + query parsing)")
+    if use_arjun:
+        try:
+            ctx = ArjunCollector().run(ctx)
+        except Exception as exc:  # noqa: BLE001
+            error(f"Collector ArjunCollector failed: {exc}")
+            if is_truthy_env("GAIA_DEBUG"):
+                import traceback
+
+                traceback.print_exc()
+            diag.add_error("ArjunCollector")
     if len(ctx.urls) > max_urls:
         ctx.urls = set(sorted(ctx.urls)[:max_urls])
     # After potential query parsing inside build_attack_surface; count params later
 
-    info("Stage 5/7: Normalizing URLs (uro) + dedupe/cap")
+    info("Stage 6/8: Normalizing URLs (uro) + dedupe/cap")
     normalized_urls = normalize_urls_with_uro(list(ctx.urls), enable_uro=use_uro, diag=diag)
     ctx.urls = set(normalized_urls)
     if len(ctx.urls) > max_urls:
         ctx.urls = set(sorted(ctx.urls)[:max_urls])
 
-    info("Stage 6/7: Analysis (static + optional AI)")
+    info("Stage 7/8: Analysis (static + optional AI)")
     attack_surface = analysis.build_attack_surface(ctx)
+    js_findings = ctx.metadata.get("js_findings", {})
+    if js_findings:
+        for secret in js_findings.get("secrets", []):
+            attack_surface.findings.append(
+                Finding(
+                    title=f"JS secret: {secret.get('type', 'secret')}",
+                    description=f"{secret.get('value', '')} (source: {secret.get('source', '')})",
+                    risks=[RiskType.info],
+                    related_endpoints=[secret.get("source", "")] if secret.get("source") else [],
+                    affected_parameters=[],
+                )
+            )
+        for email in js_findings.get("emails", []):
+            attack_surface.findings.append(
+                Finding(
+                    title="JS email",
+                    description=email,
+                    risks=[RiskType.info],
+                    related_endpoints=[],
+                    affected_parameters=[],
+                )
+            )
+        for file_path in js_findings.get("files", []):
+            attack_surface.findings.append(
+                Finding(
+                    title="JS file reference",
+                    description=file_path,
+                    risks=[RiskType.info],
+                    related_endpoints=[],
+                    affected_parameters=[],
+                )
+            )
     filtered_eps = filter_endpoints(attack_surface.endpoints, show_assets=False, only_params=False)
     apply_baseline_risk_hints(attack_surface, filtered_eps)
     unique_params_count = len({p.name for ep in attack_surface.endpoints for p in ep.parameters})
@@ -231,5 +304,6 @@ def run_scan(
         ai_stats=ai_stats,
         diagnostics={"errors": diag.total_errors, "debug": diag.debug, "stage_errors": diag.stage_errors},
         parameter_notes=parameter_notes if use_ai else {},
+        js_findings=js_findings or {},
     )
     return report

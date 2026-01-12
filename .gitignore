@@ -92,3 +92,4 @@ LinkFinder/__pycache__/
 # OS / misc
 # =========================
 *.pid
+tests/

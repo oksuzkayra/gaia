@@ -12,6 +12,7 @@ Gaia focuses on signal over noise. It:
 - Collects historical URLs
 - Extracts parameters
 - Normalizes and deduplicates endpoints
+- Analyzes JavaScript for endpoints, URLs, secrets, emails, and files
 - Applies deterministic security heuristics
 - Optionally enriches findings with LLM-based reasoning (bounded & optimized)
 
@@ -28,6 +29,7 @@ The result is a fast, readable map of what matters in an application’s attack 
 - Historical URL discovery via gau
 - Parameter discovery via arjun + query parsing
 - URL normalization and dedupe with uro
+- JS Analyzer for noise-reduced JS extraction
 - Static risk heuristics (IDOR, SSRF, auth, traversal, injection, etc.)
 - Optional LLM-assisted analysis (capped, minified, fast)
 - Noise reduction: static asset filtering, tracking/junk parameter filtering
@@ -37,10 +39,11 @@ The result is a fast, readable map of what matters in an application’s attack 
 1. Resolve external tools
 2. Crawl target (Katana)
 3. Collect historical URLs (gau)
-4. Extract parameters (arjun + parsing)
-5. Normalize & deduplicate URLs (uro)
-6. Analyze (static + optional AI)
-7. Render report
+4. JS analysis
+5. Extract parameters (arjun + parsing)
+6. Normalize & deduplicate URLs (uro)
+7. Analyze (static + optional AI)
+8. Render report
 
 Each stage reports how many URLs or parameters it discovered.
 
@@ -85,6 +88,8 @@ External tools (katana, gau, arjun, linkfinder, uro) can be auto-installed if en
 - --no-arjun                Disable arjun parameter discovery
 - --no-linkfinder           Disable linkfinder JS discovery
 - --no-uro                  Disable URL normalization
+- --no-js-analyzer          Disable JS analyzer stage
+- --js-max-fetches N        Max JS files to fetch for analysis
 - --no-ai                   Disable AI reasoning
 - --show-assets             Show static assets in output
 - --only-params             Show only endpoints with parameters
@@ -108,11 +113,14 @@ External tools (katana, gau, arjun, linkfinder, uro) can be auto-installed if en
 - GAIA_DISABLE_ARJUN
 - GAIA_DISABLE_LINKFINDER
 - GAIA_DISABLE_URO
+- GAIA_DISABLE_JS_ANALYZER
 
 ### Debugging
 - GAIA_VERBOSE
 - GAIA_DEBUG
 - GAIA_LLM_DEBUG
+- GAIA_JS_MAX_FETCHES
+- GAIA_JS_MAX_CHARS
 
 Notes and modes:
 - Fast mode: disable AI and historical tools (--no-ai --no-gau) for quick reconnaissance.

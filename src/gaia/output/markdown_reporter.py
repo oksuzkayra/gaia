@@ -64,6 +64,26 @@ def to_markdown_report(report: AttackSurfaceReport) -> str:
                 lines.append(f"  - Endpoints: {related}")
             lines.append(f"  - Reason: {finding.description}")
 
+    js_findings = report.js_findings or {}
+    if js_findings:
+        lines.append("")
+        lines.append("## JS Findings")
+        secrets = js_findings.get("secrets", [])
+        emails = js_findings.get("emails", [])
+        files = js_findings.get("files", [])
+        if secrets:
+            lines.append("- Secrets:")
+            for s in secrets:
+                lines.append(f"  - {s.get('type','secret')}: {s.get('value','')} (source: {s.get('source','')})")
+        if emails:
+            lines.append("- Emails:")
+            for e in emails:
+                lines.append(f"  - {e}")
+        if files:
+            lines.append("- Files:")
+            for f in files:
+                lines.append(f"  - {f}")
+
     return "\n".join(lines)
 
 

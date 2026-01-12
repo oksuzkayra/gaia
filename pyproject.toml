@@ -1,6 +1,6 @@
 [project]
 name = "gaia"
-version = "0.1.0"
+version = "0.1.1"
 description = "Gaia - CLI-first, AI-optional recon & attack surface analysis tool"
 authors = [{ name = "Gaia Team" }]
 requires-python = ">=3.10"
