@@ -107,3 +107,4 @@ class AttackSurfaceReport(BaseModel):
     ai_stats: Optional[Dict[str, int]] = None
     diagnostics: Dict[str, Any] = Field(default_factory=dict)
     parameter_notes: Dict[str, Dict[str, str]] = Field(default_factory=dict)
+    js_findings: Dict[str, Any] = Field(default_factory=dict)
